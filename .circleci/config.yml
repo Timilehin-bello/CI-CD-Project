@@ -8,23 +8,23 @@ parameters:
 orbs:
   slack: circleci/slack@4.1
 
-# commands:
-# destroy-environment:
-#   description: Destroy back-end and front-end cloudformation stacks givenn a workflow ID.
-#   parameters:
-#     # Add parameter here
-#     workflow_id:
-#       type: string
-#   steps:
-#     - run:
-#         name: Destroy environmentss
-#         when: on_fail
-#         command: |
-#           echo "Destroying environment: << parameters.workflow_id >>"
-#           aws cloudformation delete-stack \
-#           --stack-name udapeople-backend-<<parameters.workflow_id>>
-#           aws cloudformation delete-stack \
-#           --stack-name udapeople-frontend-<<parameters.workflow_id>>
+commands:
+destroy-environment:
+  description: Destroy back-end and front-end cloudformation stacks givenn a workflow ID.
+  parameters:
+    # Add parameter here
+    workflow_id:
+      type: string
+  steps:
+    - run:
+        name: Destroy environmentss
+        when: on_fail
+        command: |
+          echo "Destroying environment: << parameters.workflow_id >>"
+          aws cloudformation delete-stack \
+          --stack-name udapeople-backend-<<parameters.workflow_id>>
+          aws cloudformation delete-stack \
+          --stack-name udapeople-frontend-<<parameters.workflow_id>>
 
 jobs:
   build-frontend:
@@ -175,8 +175,56 @@ jobs:
           paths:
             - project/.circleci/ansible/inventory.txt
       # Here's where you will add some code to rollback on failure
-      # - destroy-environment:
-      #     workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+      - destroy-environment:
+          workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+
+  configure-infrastructure:
+    docker:
+      # Docker image here that supports Ansible
+      - image: python:3.10-alpine3.16
+      # - image: amazon/aws-cli
+    steps:
+      # Checkout code from git
+      - checkout
+      # Add ssh keys with fingerprint
+      - add_ssh_keys:
+          fingerprints:
+            - "ac:a0:c9:89:74:94:e9:b3:6a:4f:47:3a:73:26:94:69"
+      - run:
+          name: Install dependencies
+          command: |
+            apk add --update --no-cache tar gzip ansible aws-cli
+      # attach workspace
+      - attach_workspace:
+          at: ~/
+      - restore_cache:
+          keys: [backend-build]
+      - run:
+          name: Configure server
+          command: |
+            # # add environment variables to server
+            # echo ENVIRONMENT=production > backend/.env
+            # echo TYPEORM_CONNECTION=$TYPEORM_CONNECTION >> backend/.env
+            # echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> backend/.env
+            # echo TYPEORM_ENTITIES=$TYPEORM_ENTITIES >> backend/.env
+            # echo TYPEORM_HOST=$TYPEORM_HOST >> backend/.env
+            # echo TYPEORM_MIGRATIONS=$TYPEORM_MIGRATIONS >> backend/.env
+            # echo TYPEORM_MIGRATIONS_DIR=$TYPEORM_MIGRATIONS_DIR >> backend/.env
+            # echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> backend/.env
+            # echo TYPEORM_PORT=$TYPEORM_PORT >> backend/.env
+            # echo TYPEORM_USERNAME=$TYPEORM_USERNAME >> backend/.env
+            # cat backend/.env
+            cd .circleci/ansible
+            ansible-playbook -i inventory.txt configure-server.yml \
+            --key-file ~/.ssh/id_rsa_aca0c9897494e9b36a4f473a73269469
+      # save backend back to workspace
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - project/backend
+      # Here's where you will add some code to rollback on failure
+      - destroy-environment:
+          workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
 
 workflows:
   default:
@@ -196,3 +244,5 @@ workflows:
           filters:
             branches:
               only: [master]
+      - configure-infrastructure:
+          requires: [deploy-infrastructure]
