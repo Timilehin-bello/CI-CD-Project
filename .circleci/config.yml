@@ -441,6 +441,70 @@ jobs:
       - revert-migrations:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7
 
+
+   cleanup:
+    docker:
+      - image: amazon/aws-cli
+      # Docker image here
+    steps:
+      # Checkout code from git
+      - checkout
+      - run:
+          name: Cleanup stackss
+          command: |
+            # your code here
+            # export OldWorkflowID=$(aws cloudformation list-exports \
+            #   --query "Exports[?Name==\`WorkflowID\`].Value" \
+            #   --no-paginate --output text)
+            # echo $OldWorkflowID
+            echo <<pipeline.parameters.workflow_id>>
+            export OldWorkflowID=<<pipeline.parameters.workflow_id>>
+            echo OldWorkflowID: ${OldWorkflowID}
+            echo CIRCLE_WORKFLOW_ID: ${CIRCLE_WORKFLOW_ID:0:7}
+            export STACKS=$(aws cloudformation list-stacks \
+            --query "StackSummaries[*].StackName" \
+            --stack-status-filter CREATE_COMPLETE --no-paginate --output text)
+            # if [[ "${OldWorkflowID}" != "${OldWorkflowID}" ]]
+            if [[ "${STACKS[@]}" =~ "${OldWorkflowID}" ]]
+            then
+              # export OldWorkflowID="udapeople"
+              echo $OldWorkflowID $STACKS ${CIRCLE_WORKFLOW_ID:0:7}
+              # aws s3 rm "s3://udapeople-${OldWorkflowID}" --recursive
+              # aws cloudformation delete-stack --stack-name "udapeople-backend-${OldWorkflowID}"
+              # aws cloudformation delete-stack --stack-name "udapeople-frontend-${OldWorkflowID}"
+            else
+              echo ------------ Cannot cleanup stacks --------------
+            fi
+            
+  prometheus-node-exporter-job:
+    docker:
+      - image: python:3.10-alpine3.16
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - 'ac:a0:c9:89:74:94:e9:b3:6a:4f:47:3a:73:26:94:69'
+      - run:
+          name: Install deps
+          command: |
+            apk add --update aws-cli tar gzip ansible nodejs npm
+      - restore_cache:
+          keys: [backend-build]
+      - attach_workspace:
+          at: ~/
+      - run:
+          name: Setup Prometheus Node Exporterr
+          command: |
+            cd .circleci/ansible
+            cat inventory.txt
+            ansible-playbook -i inventory.txt node-exporter.yml \
+            --key-file ~/.ssh/id_rsa_aca0c9897494e9b36a4f473a73269469
+      # Here's where you will add some code to rollback on failure
+      - destroy-environment:
+          workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+      - revert-migrations:
+          workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+
 workflows:
   default:
     jobs:
@@ -471,3 +535,7 @@ workflows:
           requires: [deploy-backend, deploy-frontend]
       - cloudfront-update:
           requires: [smoke-test]
+      - prometheus-node-exporter-job:
+          requires: [smoke-test]          
+      - cleanup:
+          requires: [prometheus-node-exporter-job, cloudfront-update]
