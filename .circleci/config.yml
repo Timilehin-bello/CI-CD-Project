@@ -498,7 +498,7 @@ jobs:
             cat inventory.txt
             ansible-playbook -i inventory.txt node-exporter.yml \
             --key-file ~/.ssh/id_rsa_aca0c9897494e9b36a4f473a73269469
-      # Here's where you will add some code to rollback on failure
+      # Here's where you will add some code to rollback on failuree
       - destroy-environment:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
       - revert-migrations:
