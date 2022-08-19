@@ -412,7 +412,7 @@ jobs:
       # Docker image here that supports AWS CLI
       - image: amazon/aws-cli
     steps:
-      # Checkout code from git
+      # Checkout code from gitt
       - checkout
       - run:
           name: Install dependencies
